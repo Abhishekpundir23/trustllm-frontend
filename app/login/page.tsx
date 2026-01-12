@@ -18,7 +18,6 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // OAuth2 requires form data, not JSON
       const formData = new URLSearchParams();
       formData.append("username", email);
       formData.append("password", password);
@@ -27,11 +26,19 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
       });
 
-      // Save token and redirect
       localStorage.setItem("token", res.data.access_token);
       router.push("/dashboard");
-    } catch (err) {
-      setError("Invalid email or password");
+    } catch (err: any) {
+      console.error("Login Error:", err); // <--- Check your browser console!
+      if (err.response) {
+        // Server responded with an error (401, 422, 500)
+        setError(err.response.data.detail || "Login failed");
+      } else if (err.request) {
+        // Server did not respond (Network Error / CORS)
+        setError("Cannot connect to server. Is the Backend running?");
+      } else {
+        setError("An unexpected error occurred.");
+      }
     } finally {
       setLoading(false);
     }
