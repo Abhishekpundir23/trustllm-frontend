@@ -32,7 +32,7 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
   const [isRunModalOpen, setIsRunModalOpen] = useState(false);
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [isPromptModalOpen, setIsPromptModalOpen] = useState(false); // NEW
+  const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
 
   // Data States
   const [newPrompt, setNewPrompt] = useState("");
@@ -41,12 +41,11 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
   
   // Run State
   const [modelName, setModelName] = useState("GPT-4");
-  const [selectedPromptId, setSelectedPromptId] = useState<string>(""); // NEW
+  const [selectedPromptId, setSelectedPromptId] = useState<string>(""); 
   const [isRunning, setIsRunning] = useState(false);
   const [runResult, setRunResult] = useState<{correct: number, incorrect: number} | null>(null);
 
   // Prompt Form State
-  const [promptName, setPromptName] = useState("");
   const [promptTemplate, setPromptTemplate] = useState("You are a helpful assistant.\n\nUser Question: {{prompt}}");
 
   // Analysis Data
@@ -60,7 +59,7 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
         const [t, r, p] = await Promise.all([
             api.get(`/projects/${id}/tests/`),
             api.get(`/projects/${id}/run/`),
-            api.get(`/projects/${id}/prompts/`) // Fetch prompts
+            api.get(`/projects/${id}/prompts/`)
         ]);
         setTests(t.data);
         setRuns(r.data);
@@ -83,8 +82,8 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
   const handleCreatePrompt = async (e: React.FormEvent) => {
       e.preventDefault();
       try {
-          await api.post(`/projects/${id}/prompts/`, { name: promptName, template: promptTemplate });
-          setPromptName(""); setPromptTemplate("You are a helpful assistant.\n\nUser Question: {{prompt}}"); 
+          await api.post(`/projects/${id}/prompts/`, { template: promptTemplate });
+          setPromptTemplate("You are a helpful assistant.\n\nUser Question: {{prompt}}"); 
           setIsPromptModalOpen(false); fetchData();
       } catch (err) { alert("Failed to create prompt"); }
   };
@@ -169,10 +168,10 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
         </div>
       )}
 
-      {/* --- PROMPTS TAB (NEW) --- */}
+      {/* --- PROMPTS TAB --- */}
       {activeTab === "prompts" && (
           <div>
-              <button onClick={() => setIsPromptModalOpen(true)} className="mb-4 flex items-center gap-2 rounded bg-blue-600 px-4 py-2 font-bold hover:bg-blue-500"><Plus className="h-5 w-5" /> Create Prompt Template</button>
+              <button onClick={() => setIsPromptModalOpen(true)} className="mb-4 flex items-center gap-2 rounded bg-blue-600 px-4 py-2 font-bold hover:bg-blue-500"><Plus className="h-5 w-5" /> Create New Version</button>
               <div className="grid gap-4 md:grid-cols-2">
                   {prompts.length === 0 ? (
                       <div className="col-span-2 rounded-xl bg-gray-800 p-12 text-center text-gray-400 border border-gray-700">
@@ -183,7 +182,8 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
                   ) : (
                       prompts.map((prompt) => (
                           <div key={prompt.id} className="rounded-xl bg-gray-800 p-6 shadow-md border border-gray-700">
-                              <h3 className="font-bold text-white text-lg mb-2">{prompt.name}</h3>
+                              {/* Display VERSION instead of Name */}
+                              <h3 className="font-bold text-white text-lg mb-2">Version {prompt.version}</h3>
                               <div className="rounded bg-black/30 p-3 border border-gray-600 font-mono text-sm text-gray-300 whitespace-pre-wrap">
                                   {prompt.template}
                               </div>
@@ -243,16 +243,13 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
         </div>
       )}
 
-      {/* 2. Create Prompt (NEW) */}
+      {/* 2. Create Prompt (Updated: No Name Input) */}
       {isPromptModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
            <div className="w-full max-w-lg rounded-xl bg-gray-800 p-6 border border-gray-700">
-              <h2 className="mb-4 text-xl font-bold">Create Prompt Template</h2>
+              <h2 className="mb-4 text-xl font-bold">Create New Prompt Version</h2>
               <form onSubmit={handleCreatePrompt} className="space-y-4">
-                  <div>
-                      <label className="mb-1 block text-sm text-gray-400">Template Name</label>
-                      <input value={promptName} onChange={e=>setPromptName(e.target.value)} className="w-full rounded bg-gray-700 p-3 outline-none" placeholder="e.g. Math Tutor Persona" required />
-                  </div>
+                  {/* REMOVED NAME INPUT */}
                   <div>
                       <label className="mb-1 block text-sm text-gray-400">System Instruction</label>
                       <textarea value={promptTemplate} onChange={e=>setPromptTemplate(e.target.value)} className="w-full h-32 rounded bg-gray-700 p-3 outline-none font-mono text-sm" required />
@@ -260,14 +257,14 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
                   </div>
                   <div className="flex justify-end gap-2 pt-4">
                       <button type="button" onClick={() => setIsPromptModalOpen(false)} className="px-4 py-2 text-gray-300">Cancel</button>
-                      <button type="submit" className="rounded bg-blue-600 px-6 py-2 font-bold hover:bg-blue-500">Create</button>
+                      <button type="submit" className="rounded bg-blue-600 px-6 py-2 font-bold hover:bg-blue-500">Create Version</button>
                   </div>
               </form>
            </div>
         </div>
       )}
 
-      {/* 3. Run Eval (UPDATED) */}
+      {/* 3. Run Eval (Updated: Show Version) */}
       {isRunModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
            <div className="w-full max-w-md rounded-xl bg-gray-800 p-6 border border-gray-700">
@@ -275,15 +272,15 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
                   <>
                     <h2 className="mb-6 text-xl font-bold text-center">Run Evaluation</h2>
                     
-                    {/* Model Select */}
                     <label className="mb-1 block text-sm text-gray-400">Model</label>
                     <select value={modelName} onChange={e=>setModelName(e.target.value)} className="mb-4 w-full rounded bg-gray-700 p-3 outline-none"><option>GPT-4</option><option>GPT-3.5</option><option>Claude-3</option></select>
                     
-                    {/* Prompt Select (NEW) */}
                     <label className="mb-1 block text-sm text-gray-400">Prompt Template</label>
                     <select value={selectedPromptId} onChange={e=>setSelectedPromptId(e.target.value)} className="mb-6 w-full rounded bg-gray-700 p-3 outline-none">
                         <option value="">Default (Raw Input)</option>
-                        {prompts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        {prompts.map(p => (
+                            <option key={p.id} value={p.id}>Version {p.version}</option> // <--- CHANGED HERE
+                        ))}
                     </select>
 
                     <div className="flex justify-end gap-2">

@@ -32,9 +32,10 @@ export interface RunDetail {
   output: string;
   score: number;
 }
+
 export interface PromptVersion {
   id: string;
-  name: string;
-  template: string; // e.g., "You are a helpful assistant. User: {{prompt}}"
+  version: number;   // <--- Changed from 'name' to 'version'
+  template: string;
   created_at: string;
 }
