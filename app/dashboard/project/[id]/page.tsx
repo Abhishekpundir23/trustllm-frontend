@@ -4,9 +4,9 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { 
-  ArrowLeft, Plus, Trash2, FileText, CheckCircle2, X, Play, Loader2, History, Scale, Eye 
+  ArrowLeft, Plus, Trash2, FileText, CheckCircle2, X, Play, Loader2, History, Scale, Eye, MessageSquare 
 } from "lucide-react";
-import { Run, RunDetail } from "@/app/types";
+import { Run, RunDetail, PromptVersion } from "@/app/types";
 
 interface TestCase {
   id: number;
@@ -19,61 +19,90 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
   const { id } = use(params);
   const router = useRouter();
   
-  // Tabs: 'tests' | 'runs'
+  // Tabs: 'tests' | 'prompts' | 'runs'
   const [activeTab, setActiveTab] = useState("tests");
 
   const [tests, setTests] = useState<TestCase[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
+  const [prompts, setPrompts] = useState<PromptVersion[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Modals
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [isRunModalOpen, setIsRunModalOpen] = useState(false);
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false); // NEW
-  
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isPromptModalOpen, setIsPromptModalOpen] = useState(false); // NEW
+
   // Data States
   const [newPrompt, setNewPrompt] = useState("");
   const [newExpected, setNewExpected] = useState("");
   const [newTaskType, setNewTaskType] = useState("general");
+  
+  // Run State
   const [modelName, setModelName] = useState("GPT-4");
+  const [selectedPromptId, setSelectedPromptId] = useState<string>(""); // NEW
   const [isRunning, setIsRunning] = useState(false);
   const [runResult, setRunResult] = useState<{correct: number, incorrect: number} | null>(null);
+
+  // Prompt Form State
+  const [promptName, setPromptName] = useState("");
+  const [promptTemplate, setPromptTemplate] = useState("You are a helpful assistant.\n\nUser Question: {{prompt}}");
 
   // Analysis Data
   const [selectedRunIds, setSelectedRunIds] = useState<string[]>([]);
   const [comparisonData, setComparisonData] = useState<any>(null);
-  const [viewRunDetails, setViewRunDetails] = useState<{run: Run, details: RunDetail[]} | null>(null); // NEW
+  const [viewRunDetails, setViewRunDetails] = useState<{run: Run, details: RunDetail[]} | null>(null);
 
   // --- Fetching ---
-  const fetchTests = async () => {
-    try { const res = await api.get(`/projects/${id}/tests/`); setTests(res.data); } catch (err) { console.error(err); }
+  const fetchData = async () => {
+    try {
+        const [t, r, p] = await Promise.all([
+            api.get(`/projects/${id}/tests/`),
+            api.get(`/projects/${id}/run/`),
+            api.get(`/projects/${id}/prompts/`) // Fetch prompts
+        ]);
+        setTests(t.data);
+        setRuns(r.data);
+        setPrompts(p.data);
+    } catch (err) { console.error(err); } 
+    finally { setLoading(false); }
   };
-  const fetchRuns = async () => {
-    try { const res = await api.get(`/projects/${id}/run/`); setRuns(res.data); } catch (err) { console.error(err); }
-  };
-  useEffect(() => { Promise.all([fetchTests(), fetchRuns()]).finally(() => setLoading(false)); }, [id]);
+
+  useEffect(() => { fetchData(); }, [id]);
 
   // --- Handlers ---
   const handleAddTest = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await api.post(`/projects/${id}/tests/`, { prompt: newPrompt, expected: newExpected, task_type: newTaskType });
-      setNewPrompt(""); setNewExpected(""); setIsTestModalOpen(false); fetchTests();
+      setNewPrompt(""); setNewExpected(""); setIsTestModalOpen(false); fetchData();
     } catch (err) { alert("Failed to add test"); }
+  };
+
+  const handleCreatePrompt = async (e: React.FormEvent) => {
+      e.preventDefault();
+      try {
+          await api.post(`/projects/${id}/prompts/`, { name: promptName, template: promptTemplate });
+          setPromptName(""); setPromptTemplate("You are a helpful assistant.\n\nUser Question: {{prompt}}"); 
+          setIsPromptModalOpen(false); fetchData();
+      } catch (err) { alert("Failed to create prompt"); }
   };
 
   const handleDeleteTest = async (testId: number) => {
     if(!confirm("Are you sure?")) return;
-    try { await api.delete(`/projects/${id}/tests/${testId}`); fetchTests(); } catch (err) { alert("Failed to delete"); }
+    try { await api.delete(`/projects/${id}/tests/${testId}`); fetchData(); } catch (err) { alert("Failed to delete"); }
   };
 
   const handleRunEvaluation = async () => {
     setIsRunning(true); setRunResult(null);
     try {
-      const res = await api.post(`/projects/${id}/run/`, { model_name: modelName });
+      const payload: any = { model_name: modelName };
+      if (selectedPromptId) payload.prompt_version_id = selectedPromptId; // Send selected prompt
+
+      const res = await api.post(`/projects/${id}/run/`, payload);
       setRunResult({ correct: res.data.correct, incorrect: res.data.incorrect });
-      fetchRuns();
+      fetchData();
     } catch (err) { alert("Run failed"); setIsRunModalOpen(false); } 
     finally { setIsRunning(false); }
   };
@@ -117,11 +146,12 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
       {/* Tabs */}
       <div className="mb-6 flex gap-6 border-b border-gray-700">
         <button onClick={() => setActiveTab("tests")} className={`pb-3 font-medium ${activeTab === "tests" ? "border-b-2 border-blue-500 text-blue-400" : "text-gray-400"}`}>Test Cases ({tests.length})</button>
+        <button onClick={() => setActiveTab("prompts")} className={`pb-3 font-medium ${activeTab === "prompts" ? "border-b-2 border-blue-500 text-blue-400" : "text-gray-400"}`}>Prompts ({prompts.length})</button>
         <button onClick={() => setActiveTab("runs")} className={`pb-3 font-medium ${activeTab === "runs" ? "border-b-2 border-blue-500 text-blue-400" : "text-gray-400"}`}>Run History ({runs.length})</button>
       </div>
 
-      {/* --- TAB CONTENT --- */}
-      {activeTab === "tests" ? (
+      {/* --- TEST CASES TAB --- */}
+      {activeTab === "tests" && (
         <div>
           <button onClick={() => setIsTestModalOpen(true)} className="mb-4 flex items-center gap-2 rounded bg-blue-600 px-4 py-2 font-bold hover:bg-blue-500"><Plus className="h-5 w-5" /> Add Test Case</button>
           <div className="grid gap-4">
@@ -137,9 +167,37 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
             ))}
           </div>
         </div>
-      ) : (
+      )}
+
+      {/* --- PROMPTS TAB (NEW) --- */}
+      {activeTab === "prompts" && (
+          <div>
+              <button onClick={() => setIsPromptModalOpen(true)} className="mb-4 flex items-center gap-2 rounded bg-blue-600 px-4 py-2 font-bold hover:bg-blue-500"><Plus className="h-5 w-5" /> Create Prompt Template</button>
+              <div className="grid gap-4 md:grid-cols-2">
+                  {prompts.length === 0 ? (
+                      <div className="col-span-2 rounded-xl bg-gray-800 p-12 text-center text-gray-400 border border-gray-700">
+                          <MessageSquare className="mx-auto mb-4 h-12 w-12 opacity-50" />
+                          <h3 className="text-lg font-medium">No prompt templates</h3>
+                          <p>Create a template to test different system instructions.</p>
+                      </div>
+                  ) : (
+                      prompts.map((prompt) => (
+                          <div key={prompt.id} className="rounded-xl bg-gray-800 p-6 shadow-md border border-gray-700">
+                              <h3 className="font-bold text-white text-lg mb-2">{prompt.name}</h3>
+                              <div className="rounded bg-black/30 p-3 border border-gray-600 font-mono text-sm text-gray-300 whitespace-pre-wrap">
+                                  {prompt.template}
+                              </div>
+                              <p className="mt-2 text-xs text-gray-500">Created: {new Date(prompt.created_at).toLocaleDateString()}</p>
+                          </div>
+                      ))
+                  )}
+              </div>
+          </div>
+      )}
+
+      {/* --- RUN HISTORY TAB --- */}
+      {activeTab === "runs" && (
         <div>
-           {/* Runs List */}
            <div className="mb-4 flex items-center justify-between">
              <p className="text-gray-400">Select 2 runs to compare, or click Eye icon to view details.</p>
              <button onClick={handleCompare} disabled={selectedRunIds.length !== 2} className="flex items-center gap-2 rounded bg-purple-600 px-4 py-2 font-bold hover:bg-purple-500 disabled:opacity-50"><Scale className="h-5 w-5" /> Compare</button>
@@ -185,32 +243,67 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
         </div>
       )}
 
-      {/* 2. Run Eval */}
+      {/* 2. Create Prompt (NEW) */}
+      {isPromptModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+           <div className="w-full max-w-lg rounded-xl bg-gray-800 p-6 border border-gray-700">
+              <h2 className="mb-4 text-xl font-bold">Create Prompt Template</h2>
+              <form onSubmit={handleCreatePrompt} className="space-y-4">
+                  <div>
+                      <label className="mb-1 block text-sm text-gray-400">Template Name</label>
+                      <input value={promptName} onChange={e=>setPromptName(e.target.value)} className="w-full rounded bg-gray-700 p-3 outline-none" placeholder="e.g. Math Tutor Persona" required />
+                  </div>
+                  <div>
+                      <label className="mb-1 block text-sm text-gray-400">System Instruction</label>
+                      <textarea value={promptTemplate} onChange={e=>setPromptTemplate(e.target.value)} className="w-full h-32 rounded bg-gray-700 p-3 outline-none font-mono text-sm" required />
+                      <p className="mt-1 text-xs text-gray-500">Use <span className="text-yellow-400">{"{{prompt}}"}</span> where the user's test question should go.</p>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-4">
+                      <button type="button" onClick={() => setIsPromptModalOpen(false)} className="px-4 py-2 text-gray-300">Cancel</button>
+                      <button type="submit" className="rounded bg-blue-600 px-6 py-2 font-bold hover:bg-blue-500">Create</button>
+                  </div>
+              </form>
+           </div>
+        </div>
+      )}
+
+      {/* 3. Run Eval (UPDATED) */}
       {isRunModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-           <div className="w-full max-w-md rounded-xl bg-gray-800 p-6 border border-gray-700 text-center">
+           <div className="w-full max-w-md rounded-xl bg-gray-800 p-6 border border-gray-700">
               {!runResult ? (
                   <>
-                    <h2 className="mb-6 text-xl font-bold">Run Evaluation</h2>
-                    <select value={modelName} onChange={e=>setModelName(e.target.value)} className="mb-6 w-full rounded bg-gray-700 p-3"><option>GPT-4</option><option>GPT-3.5</option><option>Claude-3</option></select>
+                    <h2 className="mb-6 text-xl font-bold text-center">Run Evaluation</h2>
+                    
+                    {/* Model Select */}
+                    <label className="mb-1 block text-sm text-gray-400">Model</label>
+                    <select value={modelName} onChange={e=>setModelName(e.target.value)} className="mb-4 w-full rounded bg-gray-700 p-3 outline-none"><option>GPT-4</option><option>GPT-3.5</option><option>Claude-3</option></select>
+                    
+                    {/* Prompt Select (NEW) */}
+                    <label className="mb-1 block text-sm text-gray-400">Prompt Template</label>
+                    <select value={selectedPromptId} onChange={e=>setSelectedPromptId(e.target.value)} className="mb-6 w-full rounded bg-gray-700 p-3 outline-none">
+                        <option value="">Default (Raw Input)</option>
+                        {prompts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+
                     <div className="flex justify-end gap-2">
                         <button onClick={() => setIsRunModalOpen(false)} disabled={isRunning} className="px-4 py-2 text-gray-300">Cancel</button>
                         <button onClick={handleRunEvaluation} disabled={isRunning} className="rounded bg-green-600 px-6 py-2 font-bold hover:bg-green-500">{isRunning ? "Running..." : "Start Run"}</button>
                     </div>
                   </>
               ) : (
-                  <>
+                  <div className="text-center">
                     <CheckCircle2 className="mx-auto mb-4 h-16 w-16 text-green-500" />
                     <h2 className="text-2xl font-bold">Run Complete</h2>
                     <p className="mt-2 text-gray-400">Correct: {runResult.correct} | Incorrect: {runResult.incorrect}</p>
                     <button onClick={()=>{setIsRunModalOpen(false); setRunResult(null);}} className="mt-6 w-full rounded bg-gray-700 py-2 font-bold">Close</button>
-                  </>
+                  </div>
               )}
            </div>
         </div>
       )}
 
-      {/* 3. Compare Modal */}
+      {/* 4. Compare Modal */}
       {isCompareModalOpen && comparisonData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
            <div className="w-full max-w-4xl h-[80vh] flex flex-col rounded-xl bg-gray-900 border border-gray-700 overflow-hidden">
@@ -228,37 +321,24 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
         </div>
       )}
 
-      {/* 4. View Details Modal (NEW) */}
+      {/* 5. View Details Modal */}
       {isViewModalOpen && viewRunDetails && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
            <div className="w-full max-w-3xl h-[80vh] flex flex-col rounded-xl bg-gray-900 border border-gray-700 overflow-hidden">
                <div className="flex items-center justify-between bg-gray-800 p-4">
-                   <div>
-                       <h2 className="text-xl font-bold">Run Details: {viewRunDetails.run.model_name}</h2>
-                       <p className="text-xs text-gray-400">ID: {viewRunDetails.run.run_id}</p>
-                   </div>
+                   <div><h2 className="text-xl font-bold">Run Details</h2></div>
                    <button onClick={() => setIsViewModalOpen(false)}><X className="h-6 w-6 text-gray-400 hover:text-white"/></button>
                </div>
-               
                <div className="flex-1 overflow-y-auto p-6 space-y-4">
                    {viewRunDetails.details.map((detail) => (
                        <div key={detail.test_id} className="rounded-lg bg-gray-800 p-4 border border-gray-700">
                            <div className="mb-3 flex items-start justify-between">
                                <p className="font-semibold text-white w-2/3">{detail.prompt}</p>
-                               <span className={`px-2 py-1 rounded text-xs font-bold ${detail.score === 2 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                                   {detail.score === 2 ? "PASSED" : "FAILED"}
-                               </span>
+                               <span className={`px-2 py-1 rounded text-xs font-bold ${detail.score === 2 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>{detail.score === 2 ? "PASSED" : "FAILED"}</span>
                            </div>
-                           
                            <div className="grid md:grid-cols-2 gap-4 text-sm">
-                               <div className="rounded bg-black/30 p-3">
-                                   <p className="text-xs text-gray-500 uppercase mb-1">Expected</p>
-                                   <p className="text-gray-300">{detail.expected}</p>
-                               </div>
-                               <div className={`rounded p-3 ${detail.score === 2 ? 'bg-green-900/10' : 'bg-red-900/10'}`}>
-                                   <p className="text-xs text-gray-500 uppercase mb-1">AI Output</p>
-                                   <p className={detail.score === 2 ? "text-green-200" : "text-red-200"}>{detail.output}</p>
-                               </div>
+                               <div className="rounded bg-black/30 p-3"><p className="text-xs text-gray-500 uppercase mb-1">Expected</p><p className="text-gray-300">{detail.expected}</p></div>
+                               <div className={`rounded p-3 ${detail.score === 2 ? 'bg-green-900/10' : 'bg-red-900/10'}`}><p className="text-xs text-gray-500 uppercase mb-1">AI Output</p><p className={detail.score === 2 ? "text-green-200" : "text-red-200"}>{detail.output}</p></div>
                            </div>
                        </div>
                    ))}
