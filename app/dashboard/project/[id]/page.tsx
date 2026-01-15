@@ -1,13 +1,14 @@
 "use client";
-import RunHistoryChart from "@/app/components/RunHistoryChart";
+
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
+// Consolidated all icons into ONE import
 import { 
-  ArrowLeft, Plus, Trash2, FileText, CheckCircle2, X, Play, Loader2, History, Scale, Eye, MessageSquare 
+  ArrowLeft, Plus, Trash2, FileText, CheckCircle2, X, Play, Loader2, History, Scale, Eye, MessageSquare, Upload 
 } from "lucide-react";
+import RunHistoryChart from "@/app/components/RunHistoryChart";
 import { Run, RunDetail, PromptVersion } from "@/app/types";
-
 interface TestCase {
   id: number;
   prompt: string;
@@ -121,6 +122,23 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
           setIsViewModalOpen(true);
       } catch (err) { alert("Failed to load details"); }
   };
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+
+    const file = e.target.files[0];
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+        await api.post(`/projects/${id}/tests/import`, formData, {
+            headers: { "Content-Type": "multipart/form-data" }
+        });
+        alert("Tests imported successfully!");
+        fetchData(); // Refresh the list
+    } catch (err) {
+        alert("Failed to import CSV. Ensure columns are: prompt, expected, task_type");
+    }
+};
 
   const toggleRunSelection = (runId: string) => {
     if (selectedRunIds.includes(runId)) setSelectedRunIds(selectedRunIds.filter(id => id !== runId));
@@ -152,7 +170,21 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
       {/* --- TEST CASES TAB --- */}
       {activeTab === "tests" && (
         <div>
-          <button onClick={() => setIsTestModalOpen(true)} className="mb-4 flex items-center gap-2 rounded bg-blue-600 px-4 py-2 font-bold hover:bg-blue-500"><Plus className="h-5 w-5" /> Add Test Case</button>
+          {/* Header Row: Add Test Button + Import Button */}
+          <div className="mb-4 flex gap-2">
+              <button onClick={() => setIsTestModalOpen(true)} className="flex items-center gap-2 rounded bg-blue-600 px-4 py-2 font-bold hover:bg-blue-500">
+                  <Plus className="h-5 w-5" /> Add Test Case
+              </button>
+              
+              {/* NEW: Import CSV Button */}
+              <label className="flex cursor-pointer items-center gap-2 rounded bg-gray-700 px-4 py-2 font-bold hover:bg-gray-600">
+                  <Upload className="h-5 w-5" />
+                  Import CSV
+                  <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
+              </label>
+          </div>
+
+          {/* Existing Grid of Tests */}
           <div className="grid gap-4">
             {tests.map((test) => (
                 <div key={test.id} className="relative rounded-xl bg-gray-800 p-6 shadow-md border border-gray-700">
