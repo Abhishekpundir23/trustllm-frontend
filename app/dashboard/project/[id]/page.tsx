@@ -1,5 +1,5 @@
 "use client";
-
+import RunHistoryChart from "@/app/components/RunHistoryChart";
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
@@ -198,6 +198,11 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
       {/* --- RUN HISTORY TAB --- */}
       {activeTab === "runs" && (
         <div>
+           {/* 👇 NEW CHART IS HERE 👇 */}
+           <div className="mb-8">
+              <RunHistoryChart runs={runs} />
+           </div>
+           
            <div className="mb-4 flex items-center justify-between">
              <p className="text-gray-400">Select 2 runs to compare, or click Eye icon to view details.</p>
              <button onClick={handleCompare} disabled={selectedRunIds.length !== 2} className="flex items-center gap-2 rounded bg-purple-600 px-4 py-2 font-bold hover:bg-purple-500 disabled:opacity-50"><Scale className="h-5 w-5" /> Compare</button>
