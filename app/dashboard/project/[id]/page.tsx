@@ -123,6 +123,27 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
           setIsViewModalOpen(true);
       } catch (err) { alert("Failed to load details"); }
   };
+
+  // 👇 NEW: Manual Override Handler
+  const handleUpdateScore = async (runId: string, testId: number, newScore: number) => {
+    try {
+        await api.put(`/projects/${id}/run/${runId}/results/${testId}`, { score: newScore });
+        
+        // Update local state immediately (Optimistic UI)
+        if (viewRunDetails) {
+            const updatedDetails = viewRunDetails.details.map(d => 
+                d.test_id === testId ? { ...d, score: newScore } : d
+            );
+            setViewRunDetails({ ...viewRunDetails, details: updatedDetails });
+            
+            // Also refresh the main list to show new percentages
+            fetchData();
+        }
+    } catch (err) {
+        alert("Failed to update score");
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
 
@@ -139,7 +160,7 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
     } catch (err) {
         alert("Failed to import CSV. Ensure columns are: prompt, expected, task_type");
     }
-};
+  };
 
   const toggleRunSelection = (runId: string) => {
     if (selectedRunIds.includes(runId)) setSelectedRunIds(selectedRunIds.filter(id => id !== runId));
@@ -177,7 +198,7 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
                   <Plus className="h-5 w-5" /> Add Test Case
               </button>
               
-              {/* NEW: Import CSV Button */}
+              {/* Import CSV Button */}
               <label className="flex cursor-pointer items-center gap-2 rounded bg-gray-700 px-4 py-2 font-bold hover:bg-gray-600">
                   <Upload className="h-5 w-5" />
                   Import CSV
@@ -247,7 +268,7 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
              {runs.map((run) => (
                 <div key={run.run_id} className={`flex items-center justify-between rounded-xl p-4 border transition ${selectedRunIds.includes(run.run_id) ? "bg-purple-900/20 border-purple-500" : "bg-gray-800 border-gray-700"}`}>
                     
-                    {/* 👇 THIS PART IS CHANGED (Added Tokens & Cost) 👇 */}
+                    {/* Added Tokens & Cost Display */}
                     <div onClick={() => toggleRunSelection(run.run_id)} className="flex flex-1 cursor-pointer items-center gap-4">
                         <div className={`h-4 w-4 rounded-full border ${selectedRunIds.includes(run.run_id) ? "bg-purple-500 border-purple-500" : "border-gray-500"}`}></div>
                         
@@ -264,7 +285,6 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
                             </div>
                         </div>
                     </div>
-                    {/* 👆 END CHANGES 👆 */}
 
                     <div className="flex items-center gap-6">
                         <div className="text-right">
@@ -288,7 +308,7 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
               <form onSubmit={handleAddTest} className="space-y-4">
                   <textarea value={newPrompt} onChange={e=>setNewPrompt(e.target.value)} className="w-full rounded bg-gray-700 p-3 outline-none" placeholder="Prompt..." required />
                   <div className="grid grid-cols-2 gap-4">
-                      {/* 👇 ADDED SAFETY OPTION HERE 👇 */}
+                      {/* Safety Option Added */}
                       <select value={newTaskType} onChange={e=>setNewTaskType(e.target.value)} className="rounded bg-gray-700 p-3">
                         <option value="general">General</option>
                         <option value="math">Math</option>
@@ -307,13 +327,12 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
         </div>
       )}
 
-      {/* 2. Create Prompt (Updated: No Name Input) */}
+      {/* 2. Create Prompt */}
       {isPromptModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
            <div className="w-full max-w-lg rounded-xl bg-gray-800 p-6 border border-gray-700">
               <h2 className="mb-4 text-xl font-bold">Create New Prompt Version</h2>
               <form onSubmit={handleCreatePrompt} className="space-y-4">
-                  {/* REMOVED NAME INPUT */}
                   <div>
                       <label className="mb-1 block text-sm text-gray-400">System Instruction</label>
                       <textarea value={promptTemplate} onChange={e=>setPromptTemplate(e.target.value)} className="w-full h-32 rounded bg-gray-700 p-3 outline-none font-mono text-sm" required />
@@ -328,7 +347,7 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
         </div>
       )}
 
-      {/* 3. Run Eval (Updated: Show Version) */}
+      {/* 3. Run Eval */}
       {isRunModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
            <div className="w-full max-w-md rounded-xl bg-gray-800 p-6 border border-gray-700">
@@ -343,7 +362,7 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
                     <select value={selectedPromptId} onChange={e=>setSelectedPromptId(e.target.value)} className="mb-6 w-full rounded bg-gray-700 p-3 outline-none">
                         <option value="">Default (Raw Input)</option>
                         {prompts.map(p => (
-                            <option key={p.id} value={p.id}>Version {p.version}</option> // <--- CHANGED HERE
+                            <option key={p.id} value={p.id}>Version {p.version}</option>
                         ))}
                     </select>
 
@@ -382,7 +401,7 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
         </div>
       )}
 
-      {/* 5. View Details Modal */}
+      {/* 5. View Details Modal (Updated with Manual Override) */}
       {isViewModalOpen && viewRunDetails && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
            <div className="w-full max-w-3xl h-[80vh] flex flex-col rounded-xl bg-gray-900 border border-gray-700 overflow-hidden">
@@ -395,7 +414,21 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
                        <div key={detail.test_id} className="rounded-lg bg-gray-800 p-4 border border-gray-700">
                            <div className="mb-3 flex items-start justify-between">
                                <p className="font-semibold text-white w-2/3">{detail.prompt}</p>
-                               <span className={`px-2 py-1 rounded text-xs font-bold ${detail.score === 2 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>{detail.score === 2 ? "PASSED" : "FAILED"}</span>
+                               {/* Manual Override Buttons */}
+                               <div className="flex items-center gap-2">
+                                   <button 
+                                       onClick={() => handleUpdateScore(viewRunDetails.run.run_id, detail.test_id, 0)}
+                                       className={`px-3 py-1 rounded text-xs font-bold transition ${detail.score === 0 ? 'bg-red-600 text-white ring-2 ring-red-400' : 'bg-gray-700 text-gray-400 hover:bg-red-900/50'}`}
+                                   >
+                                       FAIL
+                                   </button>
+                                   <button 
+                                       onClick={() => handleUpdateScore(viewRunDetails.run.run_id, detail.test_id, 2)}
+                                       className={`px-3 py-1 rounded text-xs font-bold transition ${detail.score === 2 ? 'bg-green-600 text-white ring-2 ring-green-400' : 'bg-gray-700 text-gray-400 hover:bg-green-900/50'}`}
+                                   >
+                                       PASS
+                                   </button>
+                               </div>
                            </div>
                            <div className="grid md:grid-cols-2 gap-4 text-sm">
                                <div className="rounded bg-black/30 p-3"><p className="text-xs text-gray-500 uppercase mb-1">Expected</p><p className="text-gray-300">{detail.expected}</p></div>
