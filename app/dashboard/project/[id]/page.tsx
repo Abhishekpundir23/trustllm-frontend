@@ -230,22 +230,41 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
       {/* --- RUN HISTORY TAB --- */}
       {activeTab === "runs" && (
         <div>
-           {/* 👇 NEW CHART IS HERE 👇 */}
+           {/* Chart Section */}
            <div className="mb-8">
               <RunHistoryChart runs={runs} />
            </div>
            
+           {/* Toolbar */}
            <div className="mb-4 flex items-center justify-between">
              <p className="text-gray-400">Select 2 runs to compare, or click Eye icon to view details.</p>
              <button onClick={handleCompare} disabled={selectedRunIds.length !== 2} className="flex items-center gap-2 rounded bg-purple-600 px-4 py-2 font-bold hover:bg-purple-500 disabled:opacity-50"><Scale className="h-5 w-5" /> Compare</button>
            </div>
+
+           {/* List of Runs */}
            <div className="space-y-3">
              {runs.map((run) => (
                 <div key={run.run_id} className={`flex items-center justify-between rounded-xl p-4 border transition ${selectedRunIds.includes(run.run_id) ? "bg-purple-900/20 border-purple-500" : "bg-gray-800 border-gray-700"}`}>
+                    
+                    {/* 👇 THIS PART IS CHANGED (Added Tokens & Cost) 👇 */}
                     <div onClick={() => toggleRunSelection(run.run_id)} className="flex flex-1 cursor-pointer items-center gap-4">
                         <div className={`h-4 w-4 rounded-full border ${selectedRunIds.includes(run.run_id) ? "bg-purple-500 border-purple-500" : "border-gray-500"}`}></div>
-                        <div><h3 className="font-bold text-white">{run.model_name}</h3><p className="text-xs text-gray-400">ID: {run.run_id.slice(0, 8)}...</p></div>
+                        
+                        <div>
+                            <h3 className="font-bold text-white">{run.model_name}</h3>
+                            <div className="flex gap-3 text-xs text-gray-400">
+                                <span>ID: {run.run_id}</span>
+                                <span className="text-gray-600">|</span>
+                                {/* Display Total Tokens */}
+                                <span>⚡ {run.total_input_tokens + run.total_output_tokens} toks</span>
+                                <span className="text-gray-600">|</span>
+                                {/* Display Cost in Green */}
+                                <span className="text-green-400 font-mono">${run.estimated_cost?.toFixed(4) || "0.0000"}</span>
+                            </div>
+                        </div>
                     </div>
+                    {/* 👆 END CHANGES 👆 */}
+
                     <div className="flex items-center gap-6">
                         <div className="text-right">
                            <p className="text-xs text-gray-500 uppercase">Pass Rate</p>
@@ -255,27 +274,6 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
                     </div>
                 </div>
              ))}
-           </div>
-        </div>
-      )}
-
-      {/* --- MODALS --- */}
-      {/* 1. Add Test */}
-      {isTestModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-           <div className="w-full max-w-lg rounded-xl bg-gray-800 p-6 border border-gray-700">
-              <h2 className="mb-4 text-xl font-bold">Add Test Case</h2>
-              <form onSubmit={handleAddTest} className="space-y-4">
-                  <textarea value={newPrompt} onChange={e=>setNewPrompt(e.target.value)} className="w-full rounded bg-gray-700 p-3 outline-none" placeholder="Prompt..." required />
-                  <div className="grid grid-cols-2 gap-4">
-                      <select value={newTaskType} onChange={e=>setNewTaskType(e.target.value)} className="rounded bg-gray-700 p-3"><option value="general">General</option><option value="math">Math</option><option value="code">Coding</option></select>
-                      <input value={newExpected} onChange={e=>setNewExpected(e.target.value)} className="rounded bg-gray-700 p-3" placeholder="Expected..." />
-                  </div>
-                  <div className="flex justify-end gap-2 pt-4">
-                      <button type="button" onClick={() => setIsTestModalOpen(false)} className="px-4 py-2 text-gray-300">Cancel</button>
-                      <button type="submit" className="rounded bg-blue-600 px-6 py-2 font-bold hover:bg-blue-500">Save</button>
-                  </div>
-              </form>
            </div>
         </div>
       )}

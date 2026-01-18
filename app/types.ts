@@ -24,6 +24,11 @@ export interface Run {
   correct: number;
   incorrect: number;
   prompt_version_id?: string;
+  
+  // 👇 NEW FIELDS 👇
+  total_input_tokens: number;
+  total_output_tokens: number;
+  estimated_cost: number;
 }
 export interface RunDetail {
   test_id: number;
