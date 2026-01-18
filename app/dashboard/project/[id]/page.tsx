@@ -15,6 +15,7 @@ interface TestCase {
   prompt: string;
   expected: string;
   task_type: string;
+  context?: string; // Added context field for RAG
 }
 
 export default function ProjectDetails({ params }: { params: Promise<{ id: string }> }) {
@@ -40,6 +41,7 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
   const [newPrompt, setNewPrompt] = useState("");
   const [newExpected, setNewExpected] = useState("");
   const [newTaskType, setNewTaskType] = useState("general");
+  const [newContext, setNewContext] = useState(""); // NEW: RAG Context State
   
   // Run State
   const [modelName, setModelName] = useState("GPT-4");
@@ -76,8 +78,19 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
   const handleAddTest = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post(`/projects/${id}/tests/`, { prompt: newPrompt, expected: newExpected, task_type: newTaskType });
-      setNewPrompt(""); setNewExpected(""); setIsTestModalOpen(false); fetchData();
+      // Updated to send context for RAG
+      await api.post(`/projects/${id}/tests/`, { 
+          prompt: newPrompt, 
+          expected: newExpected, 
+          task_type: newTaskType,
+          context: newContext 
+      });
+      // Clear inputs
+      setNewPrompt(""); 
+      setNewExpected(""); 
+      setNewContext(""); 
+      setIsTestModalOpen(false); 
+      fetchData();
     } catch (err) { alert("Failed to add test"); }
   };
 
@@ -124,20 +137,18 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
       } catch (err) { alert("Failed to load details"); }
   };
 
-  // 👇 NEW: Manual Override Handler
+  // Manual Override Handler (Phase 4)
   const handleUpdateScore = async (runId: string, testId: number, newScore: number) => {
     try {
         await api.put(`/projects/${id}/run/${runId}/results/${testId}`, { score: newScore });
         
-        // Update local state immediately (Optimistic UI)
+        // Optimistic UI Update
         if (viewRunDetails) {
             const updatedDetails = viewRunDetails.details.map(d => 
                 d.test_id === testId ? { ...d, score: newScore } : d
             );
             setViewRunDetails({ ...viewRunDetails, details: updatedDetails });
-            
-            // Also refresh the main list to show new percentages
-            fetchData();
+            fetchData(); // Refresh metrics
         }
     } catch (err) {
         alert("Failed to update score");
@@ -216,6 +227,13 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
                     <div><label className="text-xs font-semibold text-gray-500 uppercase">Prompt</label><p className="mt-1 text-gray-200">{test.prompt}</p></div>
                     <div><label className="text-xs font-semibold text-gray-500 uppercase">Expected</label><p className="mt-1 text-gray-300">{test.expected || "-"}</p></div>
                   </div>
+                  {/* Show Context if available (RAG) */}
+                  {test.context && (
+                      <div className="mt-2 pt-2 border-t border-gray-700">
+                          <label className="text-xs font-semibold text-gray-500 uppercase">Context (RAG)</label>
+                          <p className="mt-1 text-xs text-gray-400 line-clamp-2">{test.context}</p>
+                      </div>
+                  )}
                 </div>
             ))}
           </div>
@@ -236,7 +254,6 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
                   ) : (
                       prompts.map((prompt) => (
                           <div key={prompt.id} className="rounded-xl bg-gray-800 p-6 shadow-md border border-gray-700">
-                              {/* Display VERSION instead of Name */}
                               <h3 className="font-bold text-white text-lg mb-2">Version {prompt.version}</h3>
                               <div className="rounded bg-black/30 p-3 border border-gray-600 font-mono text-sm text-gray-300 whitespace-pre-wrap">
                                   {prompt.template}
@@ -268,7 +285,7 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
              {runs.map((run) => (
                 <div key={run.run_id} className={`flex items-center justify-between rounded-xl p-4 border transition ${selectedRunIds.includes(run.run_id) ? "bg-purple-900/20 border-purple-500" : "bg-gray-800 border-gray-700"}`}>
                     
-                    {/* Added Tokens & Cost Display */}
+                    {/* Financial & Token Analytics Display */}
                     <div onClick={() => toggleRunSelection(run.run_id)} className="flex flex-1 cursor-pointer items-center gap-4">
                         <div className={`h-4 w-4 rounded-full border ${selectedRunIds.includes(run.run_id) ? "bg-purple-500 border-purple-500" : "border-gray-500"}`}></div>
                         
@@ -277,10 +294,10 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
                             <div className="flex gap-3 text-xs text-gray-400">
                                 <span>ID: {run.run_id}</span>
                                 <span className="text-gray-600">|</span>
-                                {/* Display Total Tokens */}
+                                {/* Total Tokens */}
                                 <span>⚡ {run.total_input_tokens + run.total_output_tokens} toks</span>
                                 <span className="text-gray-600">|</span>
-                                {/* Display Cost in Green */}
+                                {/* Cost */}
                                 <span className="text-green-400 font-mono">${run.estimated_cost?.toFixed(4) || "0.0000"}</span>
                             </div>
                         </div>
@@ -306,18 +323,31 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
            <div className="w-full max-w-lg rounded-xl bg-gray-800 p-6 border border-gray-700">
               <h2 className="mb-4 text-xl font-bold">Add Test Case</h2>
               <form onSubmit={handleAddTest} className="space-y-4">
-                  <textarea value={newPrompt} onChange={e=>setNewPrompt(e.target.value)} className="w-full rounded bg-gray-700 p-3 outline-none" placeholder="Prompt..." required />
+                  <textarea value={newPrompt} onChange={e=>setNewPrompt(e.target.value)} className="w-full rounded bg-gray-700 p-3 outline-none" placeholder="User Question..." required />
+                  
                   <div className="grid grid-cols-2 gap-4">
-                      {/* Safety Option Added */}
+                      {/* Updated Dropdown with RAG & Safety */}
                       <select value={newTaskType} onChange={e=>setNewTaskType(e.target.value)} className="rounded bg-gray-700 p-3">
                         <option value="general">General</option>
                         <option value="math">Math</option>
                         <option value="code">Coding</option>
                         <option value="safety">Safety (Red Team)</option>
+                        <option value="rag">RAG (Context Check)</option>
                       </select>
                       
-                      <input value={newExpected} onChange={e=>setNewExpected(e.target.value)} className="rounded bg-gray-700 p-3" placeholder="Expected..." />
+                      <input value={newExpected} onChange={e=>setNewExpected(e.target.value)} className="rounded bg-gray-700 p-3" placeholder="Expected Answer..." />
                   </div>
+
+                  {/* Context Input (Only for RAG) */}
+                  {newTaskType === "rag" && (
+                    <textarea 
+                        className="w-full h-24 rounded bg-gray-800 p-3 outline-none border border-gray-600 text-sm font-mono" 
+                        placeholder="Paste Context Document here (e.g. 'Our return policy is 30 days...')"
+                        onChange={e => setNewContext(e.target.value)}
+                        value={newContext}
+                    />
+                  )}
+
                   <div className="flex justify-end gap-2 pt-4">
                       <button type="button" onClick={() => setIsTestModalOpen(false)} className="px-4 py-2 text-gray-300">Cancel</button>
                       <button type="submit" className="rounded bg-blue-600 px-6 py-2 font-bold hover:bg-blue-500">Save</button>
@@ -401,7 +431,7 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
         </div>
       )}
 
-      {/* 5. View Details Modal (Updated with Manual Override) */}
+      {/* 5. View Details Modal with Manual Override */}
       {isViewModalOpen && viewRunDetails && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
            <div className="w-full max-w-3xl h-[80vh] flex flex-col rounded-xl bg-gray-900 border border-gray-700 overflow-hidden">
@@ -414,7 +444,7 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
                        <div key={detail.test_id} className="rounded-lg bg-gray-800 p-4 border border-gray-700">
                            <div className="mb-3 flex items-start justify-between">
                                <p className="font-semibold text-white w-2/3">{detail.prompt}</p>
-                               {/* Manual Override Buttons */}
+                               {/* Override Buttons */}
                                <div className="flex items-center gap-2">
                                    <button 
                                        onClick={() => handleUpdateScore(viewRunDetails.run.run_id, detail.test_id, 0)}
