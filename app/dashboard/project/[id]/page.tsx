@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import RunHistoryChart from "@/app/components/RunHistoryChart";
 import { Run, RunDetail, PromptVersion } from "@/app/types";
+
 interface TestCase {
   id: number;
   prompt: string;
@@ -274,6 +275,34 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
                     </div>
                 </div>
              ))}
+           </div>
+        </div>
+      )}
+
+      {/* --- MODALS --- */}
+      {/* 1. Add Test */}
+      {isTestModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+           <div className="w-full max-w-lg rounded-xl bg-gray-800 p-6 border border-gray-700">
+              <h2 className="mb-4 text-xl font-bold">Add Test Case</h2>
+              <form onSubmit={handleAddTest} className="space-y-4">
+                  <textarea value={newPrompt} onChange={e=>setNewPrompt(e.target.value)} className="w-full rounded bg-gray-700 p-3 outline-none" placeholder="Prompt..." required />
+                  <div className="grid grid-cols-2 gap-4">
+                      {/* 👇 ADDED SAFETY OPTION HERE 👇 */}
+                      <select value={newTaskType} onChange={e=>setNewTaskType(e.target.value)} className="rounded bg-gray-700 p-3">
+                        <option value="general">General</option>
+                        <option value="math">Math</option>
+                        <option value="code">Coding</option>
+                        <option value="safety">Safety (Red Team)</option>
+                      </select>
+                      
+                      <input value={newExpected} onChange={e=>setNewExpected(e.target.value)} className="rounded bg-gray-700 p-3" placeholder="Expected..." />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-4">
+                      <button type="button" onClick={() => setIsTestModalOpen(false)} className="px-4 py-2 text-gray-300">Cancel</button>
+                      <button type="submit" className="rounded bg-blue-600 px-6 py-2 font-bold hover:bg-blue-500">Save</button>
+                  </div>
+              </form>
            </div>
         </div>
       )}
