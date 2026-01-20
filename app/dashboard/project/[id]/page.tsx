@@ -43,8 +43,8 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
   const [newTaskType, setNewTaskType] = useState("general");
   const [newContext, setNewContext] = useState(""); // NEW: RAG Context State
   
-  // Run State
-  const [modelName, setModelName] = useState("GPT-4");
+  // Run State (Default to Gemini 2.0 Flash)
+  const [modelName, setModelName] = useState("Gemini 2.0 Flash");
   const [selectedPromptId, setSelectedPromptId] = useState<string>(""); 
   const [isRunning, setIsRunning] = useState(false);
   const [runResult, setRunResult] = useState<{correct: number, incorrect: number} | null>(null);
@@ -137,7 +137,7 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
       } catch (err) { alert("Failed to load details"); }
   };
 
-  // Manual Override Handler (Phase 4)
+  // Manual Override Handler
   const handleUpdateScore = async (runId: string, testId: number, newScore: number) => {
     try {
         await api.put(`/projects/${id}/run/${runId}/results/${testId}`, { score: newScore });
@@ -386,7 +386,12 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
                     <h2 className="mb-6 text-xl font-bold text-center">Run Evaluation</h2>
                     
                     <label className="mb-1 block text-sm text-gray-400">Model</label>
-                    <select value={modelName} onChange={e=>setModelName(e.target.value)} className="mb-4 w-full rounded bg-gray-700 p-3 outline-none"><option>GPT-4</option><option>GPT-3.5</option><option>Claude-3</option></select>
+                    <select value={modelName} onChange={e=>setModelName(e.target.value)} className="mb-4 w-full rounded bg-gray-700 p-3 outline-none">
+                        <option value="Gemini 2.0 Flash">Gemini 2.0 Flash</option>
+                        <option value="GPT-4">GPT-4</option>
+                        <option value="GPT-3.5">GPT-3.5</option>
+                        <option value="Claude-3">Claude-3</option>
+                    </select>
                     
                     <label className="mb-1 block text-sm text-gray-400">Prompt Template</label>
                     <select value={selectedPromptId} onChange={e=>setSelectedPromptId(e.target.value)} className="mb-6 w-full rounded bg-gray-700 p-3 outline-none">
