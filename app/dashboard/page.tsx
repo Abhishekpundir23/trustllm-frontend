@@ -11,7 +11,9 @@ import {
   TrendingDown, 
   Plus, 
   X, 
-  FolderGit2 
+  FolderGit2,
+  Trash2,
+  Settings // <--- Added Settings Icon
 } from "lucide-react";
 
 export default function Dashboard() {
@@ -21,8 +23,11 @@ export default function Dashboard() {
   const [metrics, setMetrics] = useState<HealthMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   
-  // Modal State
+  // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [apiKeys, setApiKeys] = useState({ openai: "", anthropic: "", gemini: "" });
+
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDomain, setNewProjectDomain] = useState("general");
   const [creating, setCreating] = useState(false);
@@ -34,6 +39,9 @@ export default function Dashboard() {
       setProjects(res.data);
       if (res.data.length > 0 && !selectedProjectId) {
         setSelectedProjectId(res.data[0].id);
+      } else if (res.data.length === 0) {
+        setSelectedProjectId(null);
+        setMetrics(null);
       }
     } catch (err) {
       console.error("Failed to fetch projects", err);
@@ -70,7 +78,6 @@ export default function Dashboard() {
         name: newProjectName,
         domain: newProjectDomain
       });
-      // Refresh list and select new project
       await fetchProjects();
       setSelectedProjectId(res.data.id);
       setIsModalOpen(false);
@@ -79,6 +86,42 @@ export default function Dashboard() {
       alert("Failed to create project");
     } finally {
       setCreating(false);
+    }
+  };
+
+  // 4. Handle Save Keys
+  const handleSaveKeys = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+        await api.put("/users/me/keys", {
+            openai_key: apiKeys.openai || null,
+            anthropic_key: apiKeys.anthropic || null,
+            gemini_key: apiKeys.gemini || null
+        });
+        alert("Keys Updated Successfully!");
+        setIsSettingsOpen(false);
+    } catch (err) {
+        alert("Failed to save keys");
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!selectedProjectId) return;
+    if (!confirm("Are you sure? This will delete ALL tests and runs in this project.")) return;
+
+    try {
+      await api.delete(`/projects/${selectedProjectId}`);
+      const remainingProjects = projects.filter(p => p.id !== selectedProjectId);
+      setProjects(remainingProjects);
+      
+      if (remainingProjects.length > 0) {
+        setSelectedProjectId(remainingProjects[0].id);
+      } else {
+        setSelectedProjectId(null);
+        setMetrics(null);
+      }
+    } catch (err) {
+      alert("Failed to delete project");
     }
   };
 
@@ -93,7 +136,16 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold">TrustLLM</h1>
         </div>
         
-        <div className="flex gap-4">
+        <div className="flex gap-4 items-center">
+          {/* Settings Button */}
+          <button 
+            onClick={() => setIsSettingsOpen(true)} 
+            className="p-2 text-gray-400 hover:text-white transition"
+            title="API Key Settings"
+          >
+            <Settings className="h-6 w-6" />
+          </button>
+
           <select
             className="rounded bg-gray-800 px-4 py-2 border border-gray-700 outline-none focus:border-blue-500"
             value={selectedProjectId || ""}
@@ -104,7 +156,16 @@ export default function Dashboard() {
             ))}
           </select>
 
-          {/* NEW BUTTON: Manage Tests */}
+          {selectedProjectId && (
+            <button
+              onClick={handleDeleteProject}
+              className="rounded bg-red-900/30 p-2 text-red-400 hover:bg-red-900/50 hover:text-red-200 border border-red-900/50"
+              title="Delete Project"
+            >
+              <Trash2 className="h-5 w-5" />
+            </button>
+          )}
+
           {selectedProjectId && (
             <button
               onClick={() => router.push(`/dashboard/project/${selectedProjectId}`)}
@@ -125,7 +186,6 @@ export default function Dashboard() {
 
       {metrics ? (
         <>
-          {/* Stats Grid */}
           <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
             <div className="rounded-xl bg-gray-800 p-6 shadow-lg border border-gray-700">
               <div className="flex items-center justify-between">
@@ -162,7 +222,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Worst Failing Tests */}
           <div className="mt-8 rounded-xl bg-gray-800 p-6 border border-gray-700">
             <h2 className="mb-4 text-xl font-semibold flex items-center gap-2">
               <AlertTriangle className="text-orange-500 h-5 w-5"/> 
@@ -191,6 +250,49 @@ export default function Dashboard() {
         <div className="flex h-64 flex-col items-center justify-center rounded-xl bg-gray-800 border border-gray-700 text-gray-400">
            <FolderGit2 className="h-12 w-12 mb-4 opacity-50" />
            <p>No projects found. Create one to get started!</p>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {isSettingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-xl bg-gray-800 p-6 border border-gray-700">
+                <h2 className="mb-4 text-xl font-bold">API Settings</h2>
+                <p className="mb-4 text-sm text-gray-400">Add your own API keys to unlock models.</p>
+                <form onSubmit={handleSaveKeys} className="space-y-4">
+                    <div>
+                        <label className="mb-1 block text-sm text-gray-400">OpenAI API Key</label>
+                        <input 
+                            type="password" 
+                            placeholder="sk-..." 
+                            className="w-full rounded bg-gray-700 p-2 text-white border border-gray-600 outline-none focus:border-blue-500"
+                            onChange={e => setApiKeys({...apiKeys, openai: e.target.value})} 
+                        />
+                    </div>
+                    <div>
+                        <label className="mb-1 block text-sm text-gray-400">Anthropic API Key</label>
+                        <input 
+                            type="password" 
+                            placeholder="sk-ant-..." 
+                            className="w-full rounded bg-gray-700 p-2 text-white border border-gray-600 outline-none focus:border-blue-500"
+                            onChange={e => setApiKeys({...apiKeys, anthropic: e.target.value})} 
+                        />
+                    </div>
+                    <div>
+                        <label className="mb-1 block text-sm text-gray-400">Gemini API Key</label>
+                        <input 
+                            type="password" 
+                            placeholder="AIza..." 
+                            className="w-full rounded bg-gray-700 p-2 text-white border border-gray-600 outline-none focus:border-blue-500"
+                            onChange={e => setApiKeys({...apiKeys, gemini: e.target.value})} 
+                        />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2">
+                        <button type="button" onClick={() => setIsSettingsOpen(false)} className="px-4 py-2 text-gray-300 hover:text-white">Cancel</button>
+                        <button type="submit" className="rounded bg-blue-600 px-4 py-2 font-bold hover:bg-blue-500">Save Keys</button>
+                    </div>
+                </form>
+            </div>
         </div>
       )}
 

@@ -3,9 +3,9 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
-// Consolidated all icons into ONE import
+// Consolidated all icons into ONE import, including 'Download'
 import { 
-  ArrowLeft, Plus, Trash2, FileText, CheckCircle2, X, Play, Loader2, History, Scale, Eye, MessageSquare, Upload 
+  ArrowLeft, Plus, Trash2, FileText, CheckCircle2, X, Play, Loader2, History, Scale, Eye, MessageSquare, Upload, Download 
 } from "lucide-react";
 import RunHistoryChart from "@/app/components/RunHistoryChart";
 import { Run, RunDetail, PromptVersion } from "@/app/types";
@@ -43,11 +43,14 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
   const [newTaskType, setNewTaskType] = useState("general");
   const [newContext, setNewContext] = useState(""); // NEW: RAG Context State
   
-  // Run State (Default to Gemini 2.0 Flash)
+  // Run State
   const [modelName, setModelName] = useState("Gemini 2.0 Flash");
   const [selectedPromptId, setSelectedPromptId] = useState<string>(""); 
   const [isRunning, setIsRunning] = useState(false);
   const [runResult, setRunResult] = useState<{correct: number, incorrect: number} | null>(null);
+  
+  // Dynamic Models State
+  const [availableModels, setAvailableModels] = useState<string[]>(["Gemini 2.0 Flash"]);
 
   // Prompt Form State
   const [promptTemplate, setPromptTemplate] = useState("You are a helpful assistant.\n\nUser Question: {{prompt}}");
@@ -72,20 +75,40 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchData(); }, [id]);
+  // 👇 Check User Keys for Available Models
+  useEffect(() => {
+    const checkKeys = async () => {
+        try {
+            const res = await api.get("/users/me");
+            const models = ["Gemini 2.0 Flash"]; // Default (uses server key if user key missing)
+            
+            if (res.data.has_openai) {
+                models.push("GPT-4");
+                models.push("GPT-3.5");
+            }
+            if (res.data.has_anthropic) {
+                models.push("Claude-3");
+            }
+            // If user explicitly set Gemini key, we can confirm it here, 
+            // but we allow it by default via server fallback
+            
+            setAvailableModels(models);
+        } catch (e) { console.error("Failed to check keys", e); }
+    };
+    checkKeys();
+    fetchData();
+  }, [id]);
 
   // --- Handlers ---
   const handleAddTest = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Updated to send context for RAG
       await api.post(`/projects/${id}/tests/`, { 
           prompt: newPrompt, 
           expected: newExpected, 
           task_type: newTaskType,
           context: newContext 
       });
-      // Clear inputs
       setNewPrompt(""); 
       setNewExpected(""); 
       setNewContext(""); 
@@ -112,7 +135,7 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
     setIsRunning(true); setRunResult(null);
     try {
       const payload: any = { model_name: modelName };
-      if (selectedPromptId) payload.prompt_version_id = selectedPromptId; // Send selected prompt
+      if (selectedPromptId) payload.prompt_version_id = selectedPromptId; 
 
       const res = await api.post(`/projects/${id}/run/`, payload);
       setRunResult({ correct: res.data.correct, incorrect: res.data.incorrect });
@@ -137,18 +160,16 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
       } catch (err) { alert("Failed to load details"); }
   };
 
-  // Manual Override Handler
   const handleUpdateScore = async (runId: string, testId: number, newScore: number) => {
     try {
         await api.put(`/projects/${id}/run/${runId}/results/${testId}`, { score: newScore });
         
-        // Optimistic UI Update
         if (viewRunDetails) {
             const updatedDetails = viewRunDetails.details.map(d => 
                 d.test_id === testId ? { ...d, score: newScore } : d
             );
             setViewRunDetails({ ...viewRunDetails, details: updatedDetails });
-            fetchData(); // Refresh metrics
+            fetchData(); 
         }
     } catch (err) {
         alert("Failed to update score");
@@ -167,10 +188,32 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
             headers: { "Content-Type": "multipart/form-data" }
         });
         alert("Tests imported successfully!");
-        fetchData(); // Refresh the list
+        fetchData(); 
     } catch (err) {
         alert("Failed to import CSV. Ensure columns are: prompt, expected, task_type");
     }
+  };
+
+  const handleExportCSV = async (runId: string) => {
+      try {
+          const response = await api.get(`/projects/${id}/run/${runId}/export/csv`, {
+              responseType: 'blob', 
+          });
+
+          const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute('download', `run_${runId}_report.csv`);
+          document.body.appendChild(link);
+          link.click();
+          
+          if (link.parentNode) link.parentNode.removeChild(link);
+          window.URL.revokeObjectURL(url);
+
+      } catch (err) {
+          console.error(err);
+          alert("Failed to download report. Ensure you are logged in.");
+      }
   };
 
   const toggleRunSelection = (runId: string) => {
@@ -203,13 +246,11 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
       {/* --- TEST CASES TAB --- */}
       {activeTab === "tests" && (
         <div>
-          {/* Header Row: Add Test Button + Import Button */}
           <div className="mb-4 flex gap-2">
               <button onClick={() => setIsTestModalOpen(true)} className="flex items-center gap-2 rounded bg-blue-600 px-4 py-2 font-bold hover:bg-blue-500">
                   <Plus className="h-5 w-5" /> Add Test Case
               </button>
               
-              {/* Import CSV Button */}
               <label className="flex cursor-pointer items-center gap-2 rounded bg-gray-700 px-4 py-2 font-bold hover:bg-gray-600">
                   <Upload className="h-5 w-5" />
                   Import CSV
@@ -217,7 +258,6 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
               </label>
           </div>
 
-          {/* Existing Grid of Tests */}
           <div className="grid gap-4">
             {tests.map((test) => (
                 <div key={test.id} className="relative rounded-xl bg-gray-800 p-6 shadow-md border border-gray-700">
@@ -227,7 +267,6 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
                     <div><label className="text-xs font-semibold text-gray-500 uppercase">Prompt</label><p className="mt-1 text-gray-200">{test.prompt}</p></div>
                     <div><label className="text-xs font-semibold text-gray-500 uppercase">Expected</label><p className="mt-1 text-gray-300">{test.expected || "-"}</p></div>
                   </div>
-                  {/* Show Context if available (RAG) */}
                   {test.context && (
                       <div className="mt-2 pt-2 border-t border-gray-700">
                           <label className="text-xs font-semibold text-gray-500 uppercase">Context (RAG)</label>
@@ -269,23 +308,17 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
       {/* --- RUN HISTORY TAB --- */}
       {activeTab === "runs" && (
         <div>
-           {/* Chart Section */}
-           <div className="mb-8">
-              <RunHistoryChart runs={runs} />
-           </div>
+           <div className="mb-8"><RunHistoryChart runs={runs} /></div>
            
-           {/* Toolbar */}
            <div className="mb-4 flex items-center justify-between">
              <p className="text-gray-400">Select 2 runs to compare, or click Eye icon to view details.</p>
              <button onClick={handleCompare} disabled={selectedRunIds.length !== 2} className="flex items-center gap-2 rounded bg-purple-600 px-4 py-2 font-bold hover:bg-purple-500 disabled:opacity-50"><Scale className="h-5 w-5" /> Compare</button>
            </div>
 
-           {/* List of Runs */}
            <div className="space-y-3">
              {runs.map((run) => (
                 <div key={run.run_id} className={`flex items-center justify-between rounded-xl p-4 border transition ${selectedRunIds.includes(run.run_id) ? "bg-purple-900/20 border-purple-500" : "bg-gray-800 border-gray-700"}`}>
                     
-                    {/* Financial & Token Analytics Display */}
                     <div onClick={() => toggleRunSelection(run.run_id)} className="flex flex-1 cursor-pointer items-center gap-4">
                         <div className={`h-4 w-4 rounded-full border ${selectedRunIds.includes(run.run_id) ? "bg-purple-500 border-purple-500" : "border-gray-500"}`}></div>
                         
@@ -294,16 +327,22 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
                             <div className="flex gap-3 text-xs text-gray-400">
                                 <span>ID: {run.run_id}</span>
                                 <span className="text-gray-600">|</span>
-                                {/* Total Tokens */}
                                 <span>⚡ {run.total_input_tokens + run.total_output_tokens} toks</span>
                                 <span className="text-gray-600">|</span>
-                                {/* Cost */}
                                 <span className="text-green-400 font-mono">${run.estimated_cost?.toFixed(4) || "0.0000"}</span>
                             </div>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-4">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); handleExportCSV(run.run_id); }} 
+                            className="rounded-full p-2 text-gray-400 hover:bg-blue-500/20 hover:text-blue-400 transition"
+                            title="Download CSV Report"
+                        >
+                            <Download className="h-5 w-5" />
+                        </button>
+
                         <div className="text-right">
                            <p className="text-xs text-gray-500 uppercase">Pass Rate</p>
                            <p className="font-mono font-bold text-green-400">{run.total_tests > 0 ? Math.round((run.correct / run.total_tests) * 100) : 0}%</p>
@@ -326,7 +365,6 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
                   <textarea value={newPrompt} onChange={e=>setNewPrompt(e.target.value)} className="w-full rounded bg-gray-700 p-3 outline-none" placeholder="User Question..." required />
                   
                   <div className="grid grid-cols-2 gap-4">
-                      {/* Updated Dropdown with RAG & Safety */}
                       <select value={newTaskType} onChange={e=>setNewTaskType(e.target.value)} className="rounded bg-gray-700 p-3">
                         <option value="general">General</option>
                         <option value="math">Math</option>
@@ -338,7 +376,6 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
                       <input value={newExpected} onChange={e=>setNewExpected(e.target.value)} className="rounded bg-gray-700 p-3" placeholder="Expected Answer..." />
                   </div>
 
-                  {/* Context Input (Only for RAG) */}
                   {newTaskType === "rag" && (
                     <textarea 
                         className="w-full h-24 rounded bg-gray-800 p-3 outline-none border border-gray-600 text-sm font-mono" 
@@ -387,10 +424,10 @@ export default function ProjectDetails({ params }: { params: Promise<{ id: strin
                     
                     <label className="mb-1 block text-sm text-gray-400">Model</label>
                     <select value={modelName} onChange={e=>setModelName(e.target.value)} className="mb-4 w-full rounded bg-gray-700 p-3 outline-none">
-                        <option value="Gemini 2.0 Flash">Gemini 2.0 Flash</option>
-                        <option value="GPT-4">GPT-4</option>
-                        <option value="GPT-3.5">GPT-3.5</option>
-                        <option value="Claude-3">Claude-3</option>
+                        {/* 👇 DYNAMIC MODEL LIST 👇 */}
+                        {availableModels.map(m => (
+                            <option key={m} value={m}>{m}</option>
+                        ))}
                     </select>
                     
                     <label className="mb-1 block text-sm text-gray-400">Prompt Template</label>
