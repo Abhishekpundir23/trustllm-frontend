@@ -1,7 +1,12 @@
 import axios from "axios";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 const api = axios.create({
-  baseURL: "http://127.0.0.1:8000", // Pointing to your FastAPI backend
+    baseURL: API_URL,
+    headers: {
+        "Content-Type": "application/json",
+    },
 });
 
 // Automatically add the token to every request if we have one
